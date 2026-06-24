@@ -1,0 +1,1812 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>그린 데스크 — 환경 의사결정 시뮬레이션</title>
+<style>
+  :root{
+    --bg-0:#0d1210;
+    --bg-1:#141b18;
+    --bg-2:#1b241f;
+    --panel:#1a2420;
+    --panel-edge:#2a3a32;
+    --ink-0:#eef3ee;
+    --ink-1:#b9c5bd;
+    --ink-2:#7e9189;
+    --line:#2c3a33;
+
+    --env:#54c98a;
+    --env-dim:#2c5440;
+    --money:#e0b34b;
+    --money-dim:#5a4a26;
+    --rep:#5aa7e0;
+    --rep-dim:#28415a;
+    --emp:#e08a4e;
+    --emp-dim:#5a3a22;
+
+    --danger:#e2604f;
+    --warn:#e0b34b;
+    --good:#54c98a;
+
+    --serif:"Noto Serif KR","Source Serif Pro",serif;
+    --sans:"Pretendard","Apple SD Gothic Neo","Noto Sans KR",-apple-system,BlinkMacSystemFont,sans-serif;
+    --mono:"JetBrains Mono","Roboto Mono",ui-monospace,monospace;
+  }
+
+  *{box-sizing:border-box;}
+  html{height:100%;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(ellipse 1200px 800px at 50% -10%, #1d2b22 0%, var(--bg-0) 60%),
+      var(--bg-0);
+    color:var(--ink-0);
+    font-family:var(--sans);
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+    display:flex;
+    flex-direction:column;
+  }
+
+  #app{
+    max-width:1320px;
+    width:100%;
+    margin:0 auto;
+    padding:48px 32px;
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    min-height:100vh;
+  }
+
+  @media (prefers-reduced-motion:no-preference){
+    .fade-in{animation:fadeIn .45s ease both;}
+    .pop-in{animation:popIn .35s cubic-bezier(.2,.9,.3,1.2) both;}
+    .shake{animation:shake .4s ease;}
+  }
+  @keyframes fadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+  @keyframes popIn{from{opacity:0;transform:scale(.96);}to{opacity:1;transform:scale(1);}}
+  @keyframes shake{0%,100%{transform:translateX(0);}25%{transform:translateX(-4px);}75%{transform:translateX(4px);}}
+
+  a{color:inherit;}
+  button{font-family:inherit;}
+
+  /* ---------- 공통 카드 ---------- */
+  .card{
+    background:linear-gradient(180deg,var(--panel),#16201b);
+    border:1px solid var(--panel-edge);
+    border-radius:20px;
+    padding:36px 40px;
+    box-shadow:0 1px 0 rgba(255,255,255,.03) inset, 0 18px 40px -24px rgba(0,0,0,.7);
+  }
+
+  /* ---------- 타이틀 화면 ---------- */
+  .brand{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    margin-bottom:42px;
+  }
+  .brand-mark{
+    width:42px;height:42px;border-radius:10px;
+    background:linear-gradient(135deg,var(--env),#2f7a55);
+    display:flex;align-items:center;justify-content:center;
+    font-size:22px;
+    flex-shrink:0;
+  }
+  .brand-name{
+    font-family:var(--mono);
+    font-size:15px;
+    letter-spacing:.12em;
+    color:var(--ink-2);
+    text-transform:uppercase;
+  }
+
+  .hero-title{
+    font-family:var(--serif);
+    font-weight:700;
+    font-size:clamp(40px,5.4vw,64px);
+    line-height:1.14;
+    margin:0 0 18px;
+    letter-spacing:-.01em;
+  }
+  .hero-title em{
+    color:var(--env);
+    font-style:normal;
+  }
+  .hero-sub{
+    color:var(--ink-1);
+    font-size:19px;
+    line-height:1.75;
+    max-width:680px;
+    margin:0 0 38px;
+  }
+
+  .role-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:22px;
+    margin-bottom:10px;
+  }
+  @media (max-width:640px){ .role-grid{grid-template-columns:1fr;} }
+
+  .role-card{
+    text-align:left;
+    cursor:pointer;
+    background:var(--panel);
+    border:1px solid var(--panel-edge);
+    border-radius:18px;
+    padding:32px 28px;
+    color:var(--ink-0);
+    transition:border-color .15s ease, transform .15s ease, background .15s ease;
+    position:relative;
+    overflow:hidden;
+  }
+  .role-card:hover{
+    transform:translateY(-2px);
+    border-color:var(--env);
+    background:#1c2820;
+  }
+  .role-card:focus-visible{outline:2px solid var(--env); outline-offset:2px;}
+  .role-emoji{font-size:42px; display:block; margin-bottom:14px;}
+  .role-card h3{
+    font-family:var(--serif);
+    font-size:28px;
+    margin:0 0 10px;
+  }
+  .role-card p{
+    font-size:16.5px;
+    color:var(--ink-2);
+    line-height:1.65;
+    margin:0 0 18px;
+  }
+  .role-stats{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+  .stat-chip{
+    font-family:var(--mono);
+    font-size:13px;
+    padding:5px 12px;
+    border-radius:20px;
+    border:1px solid var(--line);
+    color:var(--ink-1);
+  }
+
+  .ghost-note{
+    margin-top:32px;
+    font-size:15px;
+    color:var(--ink-2);
+    line-height:1.7;
+    border-top:1px dashed var(--line);
+    padding-top:22px;
+  }
+
+  /* ---------- 상단 HUD ---------- */
+  .hud{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:18px;
+    gap:16px;
+    flex-wrap:wrap;
+  }
+  .hud-left{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    font-family:var(--mono);
+    font-size:15px;
+    color:var(--ink-2);
+  }
+  .role-tag{
+    background:var(--bg-2);
+    border:1px solid var(--line);
+    border-radius:20px;
+    padding:6px 16px;
+    color:var(--ink-1);
+  }
+  .progress-track{
+    flex:1;
+    min-width:140px;
+    height:9px;
+    background:var(--bg-2);
+    border-radius:8px;
+    overflow:hidden;
+    margin:0 18px;
+  }
+  .progress-fill{
+    height:100%;
+    background:linear-gradient(90deg,var(--env),#8fe0b6);
+    transition:width .5s ease;
+  }
+
+  /* ---------- 스탯 대시보드 ---------- */
+  .dashboard{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:14px;
+    margin-bottom:22px;
+  }
+  @media (max-width:640px){ .dashboard{grid-template-columns:repeat(2,1fr);} }
+  @media (min-width:641px) and (max-width:900px){ .dashboard{gap:12px;} .stat-value{font-size:26px;} }
+
+  .stat-box{
+    background:var(--panel);
+    border:1px solid var(--panel-edge);
+    border-radius:14px;
+    padding:16px 18px 15px;
+    position:relative;
+  }
+  .stat-label{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:14px;
+    color:var(--ink-2);
+    margin-bottom:10px;
+    letter-spacing:.02em;
+  }
+  .stat-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+  .stat-value{
+    font-family:var(--mono);
+    font-size:27px;
+    font-weight:700;
+    margin-bottom:10px;
+    transition:color .2s ease;
+  }
+  .stat-track{
+    height:9px;
+    background:var(--bg-2);
+    border-radius:8px;
+    overflow:hidden;
+  }
+  .stat-fill{
+    height:100%;
+    border-radius:8px;
+    transition:width .55s cubic-bezier(.3,.8,.4,1);
+  }
+  .stat-delta{
+    position:absolute;
+    top:18px; right:20px;
+    font-family:var(--mono);
+    font-size:16px;
+    font-weight:700;
+    opacity:0;
+    transition:opacity .25s ease, transform .25s ease;
+    transform:translateY(2px);
+  }
+  .stat-delta.show{opacity:1; transform:translateY(0);}
+  .stat-delta.pos{color:var(--good);}
+  .stat-delta.neg{color:var(--danger);}
+
+  .stat-box.warn-zone{border-color:var(--danger); box-shadow:0 0 0 1px rgba(226,96,79,.25) inset;}
+
+  /* ---------- 돌발 이벤트 배너 ---------- */
+  .event-banner{
+    background:linear-gradient(135deg,#3a2a18,#241a10);
+    border:1px solid #6a4a22;
+    border-radius:18px;
+    padding:26px 28px;
+    margin-bottom:28px;
+    display:flex;
+    gap:18px;
+    align-items:flex-start;
+  }
+  .event-icon{font-size:36px; line-height:1;}
+  .event-tag{
+    font-family:var(--mono);
+    font-size:13px;
+    letter-spacing:.08em;
+    color:var(--warn);
+    text-transform:uppercase;
+    margin-bottom:6px;
+    display:block;
+  }
+  .event-banner h4{
+    font-family:var(--serif);
+    font-size:22px;
+    margin:0 0 8px;
+  }
+  .event-banner p{
+    font-size:16.5px;
+    color:var(--ink-1);
+    line-height:1.65;
+    margin:0;
+  }
+
+  /* ---------- 상황 카드 ---------- */
+  .situation-card{
+    margin-bottom:24px;
+  }
+  .situation-eyebrow{
+    font-family:var(--mono);
+    font-size:14px;
+    color:var(--env);
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    margin-bottom:12px;
+    display:block;
+  }
+  .situation-title{
+    font-family:var(--serif);
+    font-size:30px;
+    line-height:1.3;
+    margin:0 0 14px;
+  }
+  .situation-body{
+    color:var(--ink-1);
+    font-size:18px;
+    line-height:1.7;
+    margin:0;
+  }
+
+  .choices{
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+    margin-top:26px;
+  }
+  .choice-btn{
+    text-align:left;
+    background:var(--bg-2);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:18px 22px;
+    color:var(--ink-0);
+    cursor:pointer;
+    font-size:17px;
+    line-height:1.5;
+    display:flex;
+    gap:14px;
+    align-items:flex-start;
+    transition:border-color .15s ease, background .15s ease, transform .1s ease;
+  }
+  .choice-btn:hover{
+    border-color:var(--env);
+    background:#1d2920;
+  }
+  .choice-btn:active{transform:scale(.997);}
+  .choice-btn:focus-visible{outline:2px solid var(--env); outline-offset:2px;}
+  .choice-letter{
+    font-family:var(--mono);
+    font-size:15px;
+    color:var(--env);
+    border:1px solid var(--env-dim);
+    border-radius:8px;
+    width:30px;height:30px;
+    display:flex;align-items:center;justify-content:center;
+    flex-shrink:0;
+    margin-top:1px;
+  }
+  .choice-btn:disabled{opacity:.45; cursor:default;}
+
+  /* ---------- 피드백 오버레이 ---------- */
+  .feedback-card{
+    margin-top:22px;
+    border-radius:16px;
+    padding:24px 26px;
+    border:1px solid var(--line);
+    background:var(--bg-2);
+  }
+  .feedback-tag{
+    font-family:var(--mono);
+    font-size:14px;
+    color:var(--ink-2);
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    margin-bottom:8px;
+    display:block;
+  }
+  .feedback-text{
+    font-size:18px;
+    line-height:1.7;
+    color:var(--ink-1);
+    margin:0 0 18px;
+  }
+  .delta-row{
+    display:flex;
+    gap:12px;
+    flex-wrap:wrap;
+    margin-bottom:20px;
+  }
+  .delta-pill{
+    font-family:var(--mono);
+    font-size:15px;
+    padding:6px 14px;
+    border-radius:20px;
+    border:1px solid var(--line);
+  }
+  .delta-pill.pos{color:var(--good); border-color:var(--env-dim);}
+  .delta-pill.neg{color:var(--danger); border-color:#5a2c26;}
+  .next-btn{
+    background:var(--env);
+    color:#0d1812;
+    border:none;
+    border-radius:12px;
+    padding:16px 30px;
+    font-weight:700;
+    font-size:18px;
+    cursor:pointer;
+  }
+  .next-btn:hover{filter:brightness(1.08);}
+
+  /* ---------- 게임오버 / 결과 ---------- */
+  .end-icon{font-size:62px; margin-bottom:10px;}
+  .end-title{
+    font-family:var(--serif);
+    font-size:38px;
+    margin:0 0 12px;
+  }
+  .title-badge{
+    display:inline-block;
+    margin:14px 0 22px;
+    padding:14px 28px;
+    border-radius:30px;
+    border:1px solid var(--env);
+    background:rgba(84,201,138,.08);
+    font-family:var(--serif);
+    font-size:23px;
+    color:var(--env);
+  }
+  .title-badge.bad{border-color:var(--danger); background:rgba(226,96,79,.08); color:var(--danger);}
+  .title-badge.neutral{border-color:var(--money); background:rgba(224,179,75,.08); color:var(--money);}
+
+  .end-desc{
+    color:var(--ink-1);
+    font-size:18px;
+    line-height:1.75;
+    margin:0 auto 28px;
+    max-width:760px;
+  }
+
+  .final-dashboard{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:16px;
+    margin-bottom:32px;
+  }
+  @media (max-width:640px){ .final-dashboard{grid-template-columns:repeat(2,1fr);} }
+
+  .divider{
+    border:none;
+    border-top:1px solid var(--line);
+    margin:32px 0;
+  }
+
+  .section-label{
+    font-family:var(--mono);
+    font-size:15px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--env);
+    margin-bottom:14px;
+    display:block;
+  }
+  .effort-list{
+    margin:0 0 28px;
+    padding:0;
+    list-style:none;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+  .effort-list li{
+    font-size:17px;
+    line-height:1.6;
+    color:var(--ink-1);
+    padding-left:22px;
+    position:relative;
+  }
+  .effort-list li::before{
+    content:"·";
+    position:absolute;
+    left:5px;
+    color:var(--env);
+    font-weight:700;
+  }
+
+  .form-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr 1fr;
+    gap:14px;
+    margin-bottom:18px;
+  }
+  @media (max-width:560px){ .form-grid{grid-template-columns:1fr 1fr;} }
+  .form-field{display:flex; flex-direction:column; gap:8px;}
+  .form-field.full{grid-column:1 / -1;}
+  .form-field label{
+    font-size:15px;
+    color:var(--ink-2);
+    font-family:var(--mono);
+  }
+  .form-field input, .form-field textarea{
+    background:var(--bg-1);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:14px 16px;
+    color:var(--ink-0);
+    font-size:17px;
+    font-family:var(--sans);
+    resize:vertical;
+  }
+  .form-field input:focus, .form-field textarea:focus{
+    outline:none;
+    border-color:var(--env);
+  }
+  .effort-inputs{
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+    margin-bottom:24px;
+  }
+  .effort-inputs textarea{min-height:64px;}
+
+  .end-actions{
+    display:flex;
+    gap:14px;
+    flex-wrap:wrap;
+    margin-top:8px;
+  }
+  .btn-primary{
+    background:var(--env);
+    color:#0d1812;
+    border:none;
+    border-radius:12px;
+    padding:16px 30px;
+    font-weight:700;
+    font-size:18px;
+    cursor:pointer;
+  }
+  .btn-primary:hover{filter:brightness(1.08);}
+  .btn-primary:disabled{opacity:.5; cursor:default; filter:none;}
+  .btn-secondary{
+    background:transparent;
+    color:var(--ink-1);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:16px 30px;
+    font-size:18px;
+    cursor:pointer;
+  }
+  .btn-secondary:hover{border-color:var(--ink-1);}
+
+  .save-status{
+    font-size:16px;
+    color:var(--ink-2);
+    margin-top:14px;
+    font-family:var(--mono);
+  }
+  .save-status.ok{color:var(--env);}
+
+  .footnote{
+    font-size:14.5px;
+    color:var(--ink-2);
+    line-height:1.65;
+    margin-top:26px;
+  }
+
+  /* utility */
+  .hide{display:none !important;}
+  .center{text-align:center;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+/* =========================================================
+   1. 게임 데이터
+   ========================================================= */
+
+const ROLES = {
+  corp: {
+    key:"corp",
+    name:"기업",
+    emoji:"🏭",
+    title:"기업 — 경영진",
+    intro:"당신은 제조·에너지 분야 대기업의 경영진입니다. 주주, 직원, 사회 사이에서 균형을 잡아야 합니다.",
+    stats:[
+      {key:"env",   label:"환경",     color:"var(--env)",   dim:"var(--env-dim)"},
+      {key:"profit",label:"이익",     color:"var(--money)", dim:"var(--money-dim)"},
+      {key:"rep",   label:"평판",     color:"var(--rep)",   dim:"var(--rep-dim)"},
+      {key:"emp",   label:"직원만족도", color:"var(--emp)",   dim:"var(--emp-dim)"}
+    ]
+  },
+  gov: {
+    key:"gov",
+    name:"정부",
+    emoji:"🏛️",
+    title:"정부 — 정책 결정자",
+    intro:"당신은 한 국가의 환경·경제 정책을 총괄하는 정책 결정자입니다. 국민, 기업, 국제사회의 목소리를 모두 들어야 합니다.",
+    stats:[
+      {key:"env", label:"환경",    color:"var(--env)",   dim:"var(--env-dim)"},
+      {key:"econ",label:"경제",    color:"var(--money)", dim:"var(--money-dim)"},
+      {key:"support",label:"지지율",color:"var(--rep)",   dim:"var(--rep-dim)"},
+      {key:"intl",label:"국제관계", color:"var(--emp)",   dim:"var(--emp-dim)"}
+    ]
+  }
+};
+
+/* ---------------------------------------------------------
+   상황 데이터: 각 역할별 15개 제작 → 실제 플레이는 10개 랜덤
+   stat 변화는 4개 모두 변동 (요구사항)
+   --------------------------------------------------------- */
+
+const CORP_SITUATIONS = [
+  {
+    id:"c1", title:"노후 공장의 갈림길",
+    body:"30년 된 주력 공장의 대기오염 방지 시설이 한계 수명에 도달했습니다. 환경부의 점검이 다음 달로 예정되어 있습니다.",
+    choices:[
+      {text:"최신 저탄소 설비로 전면 교체한다", effects:{env:21,profit:-36,rep:13,emp:7},
+       feedback:"막대한 투자가 들어갔지만, 배출량이 크게 줄고 공정 안전성도 개선되었습니다. 단기 실적은 흔들립니다."},
+      {text:"기존 설비를 최소한으로만 수리한다", effects:{env:-12,profit:13,rep:-8,emp:-5},
+       feedback:"비용은 아꼈지만 직원들 사이에서 \"또 미봉책이냐\"는 불만이 나옵니다. 환경 지표는 계속 나빠집니다."},
+      {text:"점검 직전에만 임시로 가동을 조정한다", effects:{env:-26,profit:6,rep:-25,emp:-12},
+       feedback:"점검은 무사히 넘겼지만 내부 제보로 편법 운영 사실이 알려지며 신뢰가 흔들립니다."},
+      {text:"설비 교체를 외부 펀드와 공동 투자로 진행한다", effects:{env:13,profit:-5,rep:8,emp:3},
+       feedback:"투자 부담을 분산해 무리 없이 설비를 개선했습니다. 효과는 더 크지만 의사결정 속도는 느려졌습니다."}
+    ]
+  },
+  {
+    id:"c2", title:"협력업체의 폐수 무단 방류",
+    body:"1차 협력업체 한 곳이 폐수를 무단으로 방류한 사실이 적발됐습니다. 직접 책임은 아니지만 공급망 전체가 도마 위에 올랐습니다.",
+    choices:[
+      {text:"즉시 거래를 끊고 새 협력업체를 찾는다", effects:{env:7,profit:-14,rep:10,emp:2},
+       feedback:"단호한 결정으로 평판은 지켰지만 공급 차질로 생산 라인에 잠시 차질이 생겼습니다."},
+      {text:"협력업체에 개선 기간을 주고 비용을 일부 지원한다", effects:{env:4,profit:-3,rep:5,emp:3},
+       feedback:"관계는 유지하면서도 점진적 개선을 이끌어냈습니다. 다만 효과가 나타나기까지 시간이 걸립니다."},
+      {text:"공식 입장 없이 사안을 조용히 덮는다", effects:{env:-23,profit:11,rep:-31,emp:-11},
+       feedback:"언론 보도 이후 \"알고도 방치했다\"는 비판이 거세지며 불신이 커집니다."},
+      {text:"전체 협력업체 대상 환경 감사 시스템을 새로 구축한다", effects:{env:11,profit:-9,rep:12,emp:5},
+       feedback:"근본적인 해결책을 마련했다는 평가를 받았지만 감사 체계 구축에 비용과 시간이 듭니다."}
+    ]
+  },
+  {
+    id:"c3", title:"플라스틱 포장재, 줄일까 유지할까",
+    body:"주력 제품의 플라스틱 포장이 비판받고 있습니다. 친환경 포장은 단가가 1.4배 높습니다.",
+    choices:[
+      {text:"전 제품군의 포장을 재생 소재로 전환한다", effects:{env:9,profit:-17,rep:8,emp:3},
+       feedback:"소비자 반응은 긍정적이지만 원가 상승이 다음 분기 실적에 그대로 반영됩니다."},
+      {text:"인기 제품 일부에만 시범 적용한다", effects:{env:1,profit:-2,rep:1,emp:1},
+       feedback:"리스크는 적었지만 \"보여주기식 아니냐\"는 일부 비판도 나옵니다."},
+      {text:"포장은 유지하고 수거·재활용 캠페인만 진행한다", effects:{env:1,profit:9,rep:-14,emp:0},
+       feedback:"근본적인 변화 없이 이미지만 관리한다는 지적을 받습니다."},
+      {text:"포장재 자체를 줄이는 미니멀 디자인으로 재설계한다", effects:{env:6,profit:-2,rep:4,emp:1},
+       feedback:"발상의 전환으로 비용과 환경 부담을 동시에 줄였다는 호평을 받습니다."}
+    ]
+  },
+  {
+    id:"c4", title:"탄소중립 선언, 지금 할까",
+    body:"경쟁사들이 잇따라 2040 탄소중립을 선언하고 있습니다. 우리 회사는 아직 구체적 계획이 없습니다.",
+    choices:[
+      {text:"구체적 로드맵과 중간 목표를 갖춰 선언한다", effects:{env:9,profit:-14,rep:15,emp:5},
+       feedback:"신뢰감 있는 선언으로 평가받았지만, 이후 매년 진행 상황을 검증받아야 하는 부담이 생깁니다."},
+      {text:"선언만 하고 세부 계획은 추후 발표한다", effects:{env:0,profit:3,rep:3,emp:-5},
+       feedback:"발표 직후엔 주목받았지만 \"알맹이가 없다\"는 비판이 뒤따릅니다."},
+      {text:"선언 대신 내부적으로 조용히 감축을 추진한다", effects:{env:5,profit:-5,rep:-8,emp:0},
+       feedback:"실질적 변화는 있었지만 외부에 알려지지 않아 이미지 개선 효과는 거의 없습니다."},
+      {text:"선언을 보류하고 시장 상황을 더 지켜본다", effects:{env:-11,profit:6,rep:-12,emp:-3},
+       feedback:"신중한 선택이었지만 \"뒷짐 지고 있다\"는 인상을 남겼습니다."}
+    ]
+  },
+  {
+    id:"c5", title:"재생에너지 전환 투자 제안",
+    body:"공장 전력을 재생에너지로 전환하는 10년 계약 제안이 들어왔습니다. 초기 비용은 크지만 장기적으로 안정적입니다.",
+    choices:[
+      {text:"전량 재생에너지로 전환 계약을 체결한다", effects:{env:16,profit:-23,rep:9,emp:5},
+       feedback:"업계 최초 사례로 주목받았습니다. 초기 비용 부담은 몇 년간 이어집니다."},
+      {text:"일부 라인만 우선 전환한다", effects:{env:1,profit:-2,rep:1,emp:1},
+       feedback:"위험을 줄인 절충안으로 무난하게 넘어갔습니다."},
+      {text:"기존 화석연료 계약을 유지한다", effects:{env:-25,profit:14,rep:-17,emp:-8},
+       feedback:"단기 비용은 아꼈지만 ESG 평가에서 감점을 받았습니다."},
+      {text:"재생에너지 발전사에 직접 지분 투자를 한다", effects:{env:8,profit:-9,rep:6,emp:2},
+       feedback:"전환과 투자수익을 동시에 노린 전략이 시장에서 신선하다는 평가를 받았습니다."}
+    ]
+  },
+  {
+    id:"c6", title:"내부 고발, 데이터 조작 의혹",
+    body:"한 직원이 배출량 데이터가 일부 조작되었다는 내부 제보를 했습니다. 사실이라면 큰 파장이 예상됩니다.",
+    choices:[
+      {text:"즉시 외부 기관에 독립 조사를 의뢰한다", effects:{env:7,profit:-12,rep:9,emp:10},
+       feedback:"투명한 대응으로 직원들의 신뢰가 회복되었지만, 조사 결과가 어떻게 나올지는 미지수입니다."},
+      {text:"내부적으로만 조용히 조사한다", effects:{env:1,profit:-2,rep:-14,emp:-8},
+       feedback:"조사가 외부에 알려지며 \"은폐 시도\"라는 의심을 받게 됩니다."},
+      {text:"제보 내용을 부정하고 정상 운영을 강조한다", effects:{env:-20,profit:7,rep:-31,emp:-20},
+       feedback:"이후 증거가 드러나며 회사의 대응이 더 큰 비판을 받습니다."},
+      {text:"제보자를 보호하며 데이터 시스템을 전면 재정비한다", effects:{env:12,profit:-6,rep:13,emp:12},
+       feedback:"근본적인 시스템 개선으로 장기적인 신뢰를 얻었습니다."}
+    ]
+  },
+  {
+    id:"c7", title:"신사옥, 어떤 기준으로 지을까",
+    body:"신사옥 건립을 앞두고 있습니다. 친환경 인증 건물은 공사비가 더 들지만 운영비를 절감할 수 있습니다.",
+    choices:[
+      {text:"최고 등급 친환경 인증 건물로 짓는다", effects:{env:10,profit:-22,rep:7,emp:7},
+       feedback:"직원들의 근무 만족도가 크게 올랐고, 장기적으로 운영비도 절감될 전망입니다."},
+      {text:"표준 사양으로 빠르게 짓는다", effects:{env:-19,profit:8,rep:-9,emp:-9},
+       feedback:"일정은 단축됐지만 \"말로만 친환경 기업\"이라는 비판을 받습니다."},
+      {text:"기존 건물을 리모델링해 사용한다", effects:{env:2,profit:3,rep:1,emp:1},
+       feedback:"새 건물보다 비용 효율적이면서도 합리적인 선택으로 평가받습니다."},
+      {text:"신사옥 대신 원격근무 인프라에 투자한다", effects:{env:6,profit:-2,rep:3,emp:4},
+       feedback:"공간 자체를 줄이는 발상이 신선하다는 반응과 함께 직원 만족도도 올랐습니다."}
+    ]
+  },
+  {
+    id:"c8", title:"그린워싱 논란",
+    body:"신제품 광고에 \"100% 친환경\"이라는 문구를 썼는데, 일부 소비자단체가 과장 광고라며 문제를 제기했습니다.",
+    choices:[
+      {text:"문구를 즉시 수정하고 공식 사과한다", effects:{env:1,profit:-3,rep:8,emp:2},
+       feedback:"빠른 인정으로 큰 타격은 피했지만 광고 효과는 줄었습니다."},
+      {text:"광고 근거 자료를 공개하며 정면 대응한다", effects:{env:1,profit:-2,rep:-11,emp:-3},
+       feedback:"근거가 충분치 않아 오히려 논란이 커졌습니다."},
+      {text:"문제없다는 입장을 유지하며 광고를 계속한다", effects:{env:-11,profit:5,rep:-23,emp:-8},
+       feedback:"소비자단체와의 갈등이 장기화되며 불신이 쌓입니다."},
+      {text:"제3자 친환경 인증을 새로 취득해 광고를 보완한다", effects:{env:8,profit:-8,rep:10,emp:3},
+       feedback:"시간이 걸렸지만 검증된 근거를 갖추며 신뢰를 회복했습니다."}
+    ]
+  },
+  {
+    id:"c9", title:"해외 공장 환경 기준",
+    body:"인건비가 낮은 국가에 공장을 신설하려 합니다. 현지 환경 규제는 국내보다 훨씬 느슨합니다.",
+    choices:[
+      {text:"현지 기준이 아닌 국내 기준을 그대로 적용한다", effects:{env:13,profit:-25,rep:11,emp:2},
+       feedback:"비용은 늘었지만 글로벌 기업으로서의 일관된 기준이라는 평가를 받았습니다."},
+      {text:"현지 법규만 최소한으로 준수한다", effects:{env:-22,profit:13,rep:-17,emp:-8},
+       feedback:"비용은 아꼈지만 국제 NGO의 감시 대상에 오르게 됩니다."},
+      {text:"현지 정부와 협의해 단계적으로 기준을 높여간다", effects:{env:4,profit:-5,rep:3,emp:1},
+       feedback:"점진적이지만 현실적인 접근으로 무난히 진행됩니다."},
+      {text:"공장 신설을 보류하고 기존 공장 효율화에 집중한다", effects:{env:3,profit:-2,rep:1,emp:4},
+       feedback:"확장 속도는 늦어졌지만 내부적으로는 안정적인 선택이라는 평가입니다."}
+    ]
+  },
+  {
+    id:"c10", title:"폐기물 처리 비용 급등",
+    body:"산업 폐기물 처리 단가가 급등했습니다. 일부 업체는 불법 처리업자를 통해 비용을 줄인다는 소문이 돕니다.",
+    choices:[
+      {text:"정식 인증 업체와 장기 계약을 맺어 비용을 안정화한다", effects:{env:8,profit:-9,rep:7,emp:1},
+       feedback:"비용 부담은 있지만 안전한 처리 체계를 갖췄다는 평가를 받습니다."},
+      {text:"폐기물 자체를 줄이는 공정 개선에 투자한다", effects:{env:16,profit:-19,rep:8,emp:4},
+       feedback:"근본적인 해결책으로 장기적인 비용 절감 효과도 기대됩니다."},
+      {text:"가장 저렴한 업체를 선택하고 세부 확인은 생략한다", effects:{env:-26,profit:11,rep:-19,emp:-5},
+       feedback:"이후 그 업체의 불법 처리가 적발되며 회사도 책임 논란에 휘말립니다."},
+      {text:"처리 비용을 제품 가격에 일부 반영한다", effects:{env:1,profit:-2,rep:-3,emp:0},
+       feedback:"소비자 반응은 엇갈렸지만 재무적으로는 무리 없이 넘어갔습니다."}
+    ]
+  },
+  {
+    id:"c11", title:"탄소배출권, 사고 말고",
+    body:"탄소 감축 목표를 채우지 못할 상황입니다. 시장에서 탄소배출권을 사들이면 장부상 목표를 맞출 수 있습니다.",
+    choices:[
+      {text:"부족분만큼 탄소배출권을 구매해 목표를 맞춘다", effects:{env:-5,profit:-8,rep:5,emp:0},
+       feedback:"공식 목표는 달성했지만 실제 배출량은 줄지 않았습니다. 일부 전문가는 \"숫자만 맞춘 것\"이라 평가합니다."},
+      {text:"배출권 구매와 함께 실제 감축 설비에도 투자한다", effects:{env:10,profit:-19,rep:8,emp:2},
+       feedback:"비용은 두 배로 들었지만 실질적 감축과 목표 달성을 동시에 이뤘습니다."},
+      {text:"목표 달성에 실패했음을 그대로 공시한다", effects:{env:2,profit:0,rep:-16,emp:2},
+       feedback:"솔직한 공시로 신뢰는 일부 지켰지만 투자자들의 우려가 커졌습니다."},
+      {text:"저품질 해외 배출권을 최저가로 대량 매입한다", effects:{env:-16,profit:-2,rep:-11,emp:-5},
+       feedback:"비용은 아꼈지만 일부 배출권이 실제 감축 효과가 없는 부실 사업 기반이었다는 사실이 드러나 논란이 됩니다."}
+    ]
+  },
+  {
+    id:"c12", title:"공급망 정밀 실사 요구",
+    body:"투자자들이 공급망 전체의 환경·인권 실사 보고서를 요구하고 있습니다. 실사에는 상당한 비용과 시간이 듭니다.",
+    choices:[
+      {text:"전체 공급망에 대한 정밀 실사를 즉시 시행한다", effects:{env:8,profit:-17,rep:12,emp:2},
+       feedback:"투자자들의 신뢰를 얻었지만 일부 협력업체와의 관계가 불편해졌습니다."},
+      {text:"상위 거래처 일부만 우선 실사한다", effects:{env:1,profit:-2,rep:1,emp:1},
+       feedback:"점진적 접근으로 큰 무리 없이 요구를 충족했습니다."},
+      {text:"외부 보고서를 인용해 자체 실사 없이 답변한다", effects:{env:-12,profit:8,rep:-19,emp:0},
+       feedback:"형식적인 대응이라는 평가를 받으며 투자자 신뢰가 흔들립니다."},
+      {text:"실사 비용을 협력업체와 분담하는 구조를 만든다", effects:{env:3,profit:-2,rep:4,emp:1},
+       feedback:"부담을 나누며 실사를 진행해 합리적이라는 평가를 받았습니다."}
+    ]
+  },
+  {
+    id:"c13", title:"직원들의 4일 근무제 + 친환경 통근 제안",
+    body:"노조 측에서 4일 근무제 도입과 함께 친환경 통근 지원(자전거, 대중교통비 지원)을 제안했습니다.",
+    choices:[
+      {text:"두 제안을 모두 시범 도입한다", effects:{env:7,profit:-14,rep:7,emp:15},
+       feedback:"직원 만족도가 크게 올랐고 통근 관련 탄소배출도 줄었습니다. 생산성 영향은 지켜봐야 합니다."},
+      {text:"통근 지원만 우선 도입한다", effects:{env:4,profit:-2,rep:2,emp:7},
+       feedback:"비교적 적은 비용으로 직원들의 호응을 얻었습니다."},
+      {text:"두 제안 모두 검토만 하고 보류한다", effects:{env:0,profit:8,rep:-6,emp:-17},
+       feedback:"직원들 사이에서 \"말뿐인 경영진\"이라는 실망이 커졌습니다."},
+      {text:"근무제 대신 성과급으로 대체 제안한다", effects:{env:-8,profit:-2,rep:-5,emp:-8},
+       feedback:"노조는 본질을 피한 대응이라며 반발했습니다."}
+    ]
+  },
+  {
+    id:"c14", title:"경쟁사의 친환경 마케팅 공세",
+    body:"경쟁사가 대대적인 친환경 캠페인으로 시장 점유율을 높이고 있습니다. 우리 회사도 대응이 필요합니다.",
+    choices:[
+      {text:"실질적인 환경 개선 성과를 검증받아 발표한다", effects:{env:7,profit:-3,rep:9,emp:2},
+       feedback:"시간이 걸렸지만 진정성 있는 메시지로 소비자 신뢰를 얻었습니다."},
+      {text:"경쟁사와 비슷한 수준의 마케팅 캠페인을 빠르게 집행한다", effects:{env:-11,profit:-8,rep:1,emp:0},
+       feedback:"실질적 변화 없이 이미지 경쟁만 벌어지며 효과는 제한적이었습니다."},
+      {text:"마케팅보다 가격 경쟁력으로 대응한다", effects:{env:-12,profit:10,rep:-14,emp:-5},
+       feedback:"단기 매출은 지켰지만 친환경 이미지에서는 뒤처졌습니다."},
+      {text:"제품 자체의 친환경 기술 개발에 투자한다", effects:{env:13,profit:-14,rep:6,emp:4},
+       feedback:"느리지만 확실한 차별화 전략으로 장기적인 경쟁력을 갖추게 되었습니다."}
+    ]
+  },
+  {
+    id:"c15", title:"태풍으로 인한 시설 피해",
+    body:"강력한 태풍으로 일부 생산 시설이 침수 피해를 입었습니다. 복구 방식을 결정해야 합니다.",
+    choices:[
+      {text:"기존 시설보다 기후 적응력을 높여 복구한다", effects:{env:10,profit:-22,rep:7,emp:5},
+       feedback:"비용은 더 들었지만 다음 자연재해에 대한 대비력이 크게 높아졌습니다."},
+      {text:"원래 상태로 최소 비용으로 복구한다", effects:{env:-8,profit:7,rep:-5,emp:-3},
+       feedback:"빠르게 복구했지만 같은 피해가 반복될 위험을 그대로 안고 갑니다."},
+      {text:"피해 지역 주민 지원과 함께 시설을 복구한다", effects:{env:3,profit:-14,rep:11,emp:7},
+       feedback:"지역사회와의 관계가 크게 개선되었습니다."},
+      {text:"보험 처리만 진행하고 복구는 최대한 늦춘다", effects:{env:-12,profit:10,rep:-16,emp:-11},
+       feedback:"단기 비용은 아꼈지만 가동 중단이 길어지며 직원들의 불안이 커졌습니다."}
+    ]
+  }
+];
+
+const GOV_SITUATIONS = [
+  {
+    id:"g1", title:"노후 석탄화력발전소 폐쇄 시점",
+    body:"전력의 상당 부분을 책임지는 노후 석탄화력발전소들의 폐쇄 시점을 결정해야 합니다. 지역 일자리와 전력 수급이 걸려 있습니다.",
+    choices:[
+      {text:"5년 내 단계적 폐쇄 로드맵을 발표한다", effects:{env:15,econ:-29,support:-9,intl:12},
+       feedback:"국제사회의 호평을 받았지만, 발전소 지역 주민들의 반발이 거셉니다."},
+      {text:"폐쇄 시점을 명시하지 않고 \"점진적 전환\"만 약속한다", effects:{env:1,econ:10,support:2,intl:-8},
+       feedback:"당장의 갈등은 피했지만 구체성이 없다는 비판이 이어집니다."},
+      {text:"폐쇄 대신 노후 시설 일부만 효율화한다", effects:{env:-22,econ:10,support:1,intl:-16},
+       feedback:"국내 반발은 줄었지만 국제 기후 회의에서 입지가 좁아졌습니다."},
+      {text:"폐쇄와 동시에 지역 재생에너지 산업 전환 기금을 조성한다", effects:{env:10,econ:-12,support:6,intl:9},
+       feedback:"지역 반발을 일부 흡수하면서도 국제적으로 모범 사례로 언급되었습니다."}
+    ]
+  },
+  {
+    id:"g2", title:"탄소세 도입 여부",
+    body:"산업계 전반에 탄소세를 도입하는 법안이 국회에 발의되었습니다. 기업들의 반발과 시민단체의 지지가 동시에 거셉니다.",
+    choices:[
+      {text:"전 산업 대상 탄소세를 전면 도입한다", effects:{env:16,econ:-28,support:-12,intl:12},
+       feedback:"국제적으로 기후 선도국 이미지를 얻었지만 산업계의 강한 반발에 부딪힙니다."},
+      {text:"고탄소 업종에만 단계적으로 적용한다", effects:{env:7,econ:-3,support:2,intl:5},
+       feedback:"절충안으로 큰 충돌 없이 정책이 통과되었습니다."},
+      {text:"세금 대신 자발적 감축 협약으로 대체한다", effects:{env:-12,econ:7,support:5,intl:-12},
+       feedback:"기업들의 환영을 받았지만 실효성에 대한 의문이 커집니다."},
+      {text:"탄소세 도입을 보류하고 추가 연구를 지시한다", effects:{env:-14,econ:8,support:0,intl:-11},
+       feedback:"신중한 선택이었지만 \"결정을 미룬다\"는 평가를 받습니다."}
+    ]
+  },
+  {
+    id:"g3", title:"국제 기후 협약 감축 목표 상향",
+    body:"국제 기후 회의에서 더 높은 감축 목표를 제시하라는 압박이 거세지고 있습니다. 산업계는 목표 상향에 강하게 반대합니다.",
+    choices:[
+      {text:"국제 기준에 맞춰 목표를 대폭 상향한다", effects:{env:15,econ:-20,support:-12,intl:15},
+       feedback:"국제 무대에서의 입지가 크게 올랐지만 국내 산업계의 반발이 거셉니다."},
+      {text:"소폭 상향하며 산업계와 타협한다", effects:{env:1,econ:-2,support:3,intl:1},
+       feedback:"무난한 절충으로 큰 잡음 없이 넘어갔습니다."},
+      {text:"기존 목표를 유지하며 \"이미 충분하다\"고 주장한다", effects:{env:-23,econ:13,support:1,intl:-28},
+       feedback:"국제사회에서 \"책임을 회피한다\"는 비판을 받으며 외교적 입지가 좁아졌습니다."},
+      {text:"목표 상향과 함께 산업계 보조금 패키지를 동시에 발표한다", effects:{env:7,econ:-8,support:7,intl:9},
+       feedback:"양쪽의 우려를 동시에 달래며 균형 잡힌 정책이라는 평가를 받았습니다."}
+    ]
+  },
+  {
+    id:"g4", title:"대형 산불, 원인은 기후변화인가",
+    body:"기록적인 대형 산불이 발생했습니다. 전문가들은 기후변화와의 연관성을 지적하지만, 일부는 산림 관리 부실을 원인으로 봅니다.",
+    choices:[
+      {text:"장기 기후 적응 계획과 산림 관리 예산을 동시에 확대한다", effects:{env:15,econ:-20,support:3,intl:9},
+       feedback:"포괄적인 대응으로 신뢰를 얻었지만 예산 확대에 대한 우려도 있습니다."},
+      {text:"피해 복구에만 집중하고 원인 분석은 추후로 미룬다", effects:{env:-5,econ:7,support:1,intl:-3},
+       feedback:"신속한 복구로 당장의 불만은 줄었지만 재발 방지책이 부족하다는 지적이 나옵니다."},
+      {text:"산림 관리 부실을 주된 원인으로 지목하며 책임 부서를 문책한다", effects:{env:-3,econ:0,support:-8,intl:-6},
+       feedback:"기후변화 요인을 축소했다는 비판을 국내외에서 받습니다."},
+      {text:"피해 지역에 재난지원금을 늘리고 기후 적응 예산은 동결한다", effects:{env:-11,econ:-5,support:5,intl:-9},
+       feedback:"당장의 지지율은 올랐지만 근본 대책 부재라는 비판이 이어집니다."}
+    ]
+  },
+  {
+    id:"g5", title:"내연기관차 판매 금지 시점",
+    body:"내연기관 신차 판매를 금지하는 시점을 정해야 합니다. 자동차 산업과 환경단체의 입장이 정면으로 충돌합니다.",
+    choices:[
+      {text:"5년 후 전면 금지를 법제화한다", effects:{env:16,econ:-26,support:-16,intl:14},
+       feedback:"국제적으로 과감한 정책이라는 평가를 받았지만 자동차 업계의 거센 반발이 이어집니다."},
+      {text:"10년 후로 시점을 늦추되 명확히 법제화한다", effects:{env:7,econ:-2,support:2,intl:7},
+       feedback:"산업계에 적응 시간을 주면서도 방향성은 분명히 했다는 평가입니다."},
+      {text:"금지 대신 전기차 구매 보조금만 확대한다", effects:{env:1,econ:-2,support:7,intl:-5},
+       feedback:"반발은 적었지만 변화의 속도가 더디다는 지적이 나옵니다."},
+      {text:"금지 계획을 철회하고 시장 자율에 맡긴다", effects:{env:-23,econ:12,support:3,intl:-20},
+       feedback:"산업계는 안도했지만 기후 정책의 후퇴라는 국제적 비판을 받았습니다."}
+    ]
+  },
+  {
+    id:"g6", title:"플라스틱 일회용품 규제",
+    body:"카페, 식당 등에서 일회용 플라스틱 사용을 규제하는 정책을 두고 소상공인들의 반발이 큽니다.",
+    choices:[
+      {text:"전면 규제를 즉시 시행한다", effects:{env:9,econ:-12,support:-19,intl:6},
+       feedback:"환경 효과는 뚜렷했지만 소상공인들의 생계 어려움 호소가 이어집니다."},
+      {text:"대체용품 지원금과 함께 단계적으로 규제한다", effects:{env:4,econ:-6,support:2,intl:4},
+       feedback:"소상공인 부담을 줄이면서도 정책 효과를 이끌어냈습니다."},
+      {text:"규제는 미루고 자발적 캠페인만 진행한다", effects:{env:0,econ:9,support:5,intl:-9},
+       feedback:"반발은 없었지만 실질적인 변화도 거의 없었습니다."},
+      {text:"대형 매장에만 우선 적용하고 소상공인은 제외한다", effects:{env:1,econ:-2,support:3,intl:0},
+       feedback:"형평성 논란이 있었지만 큰 충돌 없이 정책을 시작할 수 있었습니다."}
+    ]
+  },
+  {
+    id:"g7", title:"국가 탄소배출권 거래제 개편",
+    body:"국가 탄소배출권 거래제가 유명무실하다는 비판이 큽니다. 배출권 가격이 너무 낮아 감축 유인이 거의 없는 상황입니다.",
+    choices:[
+      {text:"무상 할당량을 줄이고 배출권 가격 하한선을 도입한다", effects:{env:16,econ:-19,support:-8,intl:9},
+       feedback:"실질적인 감축 효과가 기대되지만 산업계 비용 부담이 커집니다."},
+      {text:"제도는 유지하되 모니터링과 검증만 강화한다", effects:{env:3,econ:-2,support:2,intl:2},
+       feedback:"큰 변화는 없었지만 투명성이 개선되었다는 평가를 받습니다."},
+      {text:"기업 부담을 고려해 현행 제도를 그대로 유지한다", effects:{env:-9,econ:11,support:3,intl:-14},
+       feedback:"산업계는 환영했지만 \"제도가 형식적이다\"라는 국제 평가가 이어집니다."},
+      {text:"해외 배출권 구매를 늘려 국가 목표 달성을 우선한다", effects:{env:-12,econ:-5,support:0,intl:1},
+       feedback:"공식 목표는 맞췄지만 국내 실제 배출량은 줄지 않았다는 분석이 나옵니다."}
+    ]
+  },
+  {
+    id:"g8", title:"가뭄과 농업용수 배분",
+    body:"극심한 가뭄으로 농업용수가 부족합니다. 도시 식수, 농업, 공업용수 사이의 배분 우선순위를 정해야 합니다.",
+    choices:[
+      {text:"농업용수를 우선 배정하고 물 사용 효율화 사업을 병행한다", effects:{env:3,econ:-6,support:5,intl:1},
+       feedback:"농가의 지지를 얻었지만 다른 부문의 불만이 일부 제기됩니다."},
+      {text:"전 부문에 균등하게 용수 사용을 제한한다", effects:{env:1,econ:-3,support:-3,intl:0},
+       feedback:"공평한 결정이었지만 모든 부문에서 불만이 나옵니다."},
+      {text:"공업용수를 우선 배정해 경제 피해를 최소화한다", effects:{env:-12,econ:10,support:-12,intl:-3},
+       feedback:"기업들은 안도했지만 농민들의 거센 반발에 직면합니다."},
+      {text:"장기 가뭄 대응을 위한 물 재이용 인프라에 즉시 투자한다", effects:{env:8,econ:-16,support:2,intl:3},
+       feedback:"당장의 갈증을 해소하진 못했지만 장기적인 해법으로 평가받습니다."}
+    ]
+  },
+  {
+    id:"g9", title:"수도권 대기질 비상저감조치",
+    body:"수도권 미세먼지가 심각한 수준에 이르렀습니다. 차량 운행 제한과 공장 가동률 제한 카드를 검토하고 있습니다.",
+    choices:[
+      {text:"차량 2부제와 노후 공장 가동률 제한을 동시에 시행한다", effects:{env:10,econ:-14,support:-11,intl:5},
+       feedback:"대기질은 개선되었지만 시민과 기업 양쪽에서 불편을 호소합니다."},
+      {text:"대중교통 무료화로 차량 이용을 자율적으로 줄인다", effects:{env:4,econ:-9,support:8,intl:2},
+       feedback:"시민들의 호응이 컸지만 재정 부담이 발생했습니다."},
+      {text:"비상조치 없이 마스크 배포 등 대응만 한다", effects:{env:-16,econ:10,support:-5,intl:-8},
+       feedback:"근본 대응이 없다는 비판과 함께 시민 불만이 커졌습니다."},
+      {text:"공장 가동률 제한만 시행하고 차량 제한은 제외한다", effects:{env:1,econ:-2,support:-2,intl:0},
+       feedback:"산업계 반발은 줄였지만 효과가 제한적이라는 분석이 나옵니다."}
+    ]
+  },
+  {
+    id:"g10", title:"해안 산업단지 vs 습지 보호구역",
+    body:"대규모 산업단지 조성 예정지가 멸종위기종이 서식하는 습지와 겹칩니다. 투자 유치와 생태 보호가 충돌합니다.",
+    choices:[
+      {text:"습지를 보호구역으로 지정하고 산업단지를 다른 곳으로 옮긴다", effects:{env:15,econ:-25,support:-5,intl:11},
+       feedback:"환경단체와 국제사회의 호평을 받았지만 투자 유치가 지연됩니다."},
+      {text:"습지 일부만 보존하며 산업단지 규모를 축소한다", effects:{env:4,econ:-5,support:2,intl:2},
+       feedback:"양측의 불만을 동시에 줄이는 절충안으로 마무리되었습니다."},
+      {text:"생태 영향평가를 간소화해 산업단지 조성을 강행한다", effects:{env:-31,econ:12,support:-8,intl:-22},
+       feedback:"투자는 유치했지만 국제 환경단체의 강한 비판과 외교적 마찰을 겪습니다."},
+      {text:"습지를 보존하며 생태관광 산업으로 전환을 시도한다", effects:{env:10,econ:-2,support:5,intl:6},
+       feedback:"새로운 산업 모델로 주목받았지만 단기 경제 효과는 크지 않습니다."}
+    ]
+  },
+  {
+    id:"g11", title:"국제 탄소배출권으로 목표 채우기",
+    body:"국가 온실가스 감축 목표 달성이 어려워졌습니다. 해외 탄소배출권을 대량 구매하면 공식 목표를 채울 수 있습니다.",
+    choices:[
+      {text:"부족분을 해외 탄소배출권 구매로 충당해 목표를 달성한다", effects:{env:-8,econ:-11,support:4,intl:3},
+       feedback:"공식 통계상 목표는 채웠지만 국내 실제 배출량 감소는 거의 없었습니다. 일부 구매한 배출권의 실효성 논란도 제기됩니다."},
+      {text:"배출권 구매와 함께 국내 감축 정책도 동시에 강화한다", effects:{env:10,econ:-22,support:-3,intl:8},
+       feedback:"비용이 컸지만 실질적 감축과 목표 달성을 함께 추진했다는 평가입니다."},
+      {text:"목표 미달을 인정하고 차기 목표를 재조정한다", effects:{env:3,econ:0,support:-11,intl:-8},
+       feedback:"솔직한 인정이었지만 국제사회에서 신뢰도가 다소 떨어졌습니다."},
+      {text:"검증되지 않은 저가 해외 배출권을 최대한 많이 사들인다", effects:{env:-19,econ:-2,support:3,intl:-12},
+       feedback:"이후 일부 배출권 사업이 실제로는 감축 효과가 없었다는 사실이 드러나 국제적 신뢰가 크게 흔들립니다."}
+    ]
+  },
+  {
+    id:"g12", title:"재생에너지 발전 단지와 주민 갈등",
+    body:"대규모 태양광·풍력 발전 단지 건설 계획에 인근 주민들이 경관 훼손과 소음을 이유로 반대하고 있습니다.",
+    choices:[
+      {text:"주민 보상과 이익공유 제도를 마련해 사업을 추진한다", effects:{env:10,econ:-12,support:2,intl:7},
+       feedback:"갈등을 일부 해소하며 사업을 정상적으로 추진할 수 있었습니다."},
+      {text:"주민 반대를 이유로 사업을 전면 백지화한다", effects:{env:-20,econ:8,support:5,intl:-12},
+       feedback:"지역 갈등은 해소됐지만 재생에너지 확대 목표에 차질이 생겼습니다."},
+      {text:"주민 의견 수렴 없이 계획대로 강행한다", effects:{env:7,econ:-2,support:-20,intl:2},
+       feedback:"사업은 진행됐지만 지역 사회의 신뢰를 크게 잃었습니다."},
+      {text:"발전 단지 규모를 축소하고 입지를 재조정한다", effects:{env:2,econ:-5,support:3,intl:2},
+       feedback:"규모는 줄었지만 갈등을 줄이며 안정적으로 추진할 수 있었습니다."}
+    ]
+  },
+  {
+    id:"g13", title:"녹색산업 육성 vs 기존 산업 보호",
+    body:"한정된 예산을 녹색산업 육성에 집중할지, 기존 제조업 지원에 쓸지 결정해야 합니다. 두 산업 모두 일자리가 걸려 있습니다.",
+    choices:[
+      {text:"예산 대부분을 녹색산업 육성에 투입한다", effects:{env:12,econ:-20,support:-9,intl:8},
+       feedback:"미래 산업 경쟁력을 확보했다는 평가지만 기존 제조업 종사자들의 불안이 커집니다."},
+      {text:"두 산업에 예산을 균등하게 배분한다", effects:{env:1,econ:-2,support:1,intl:1},
+       feedback:"무난한 분배로 큰 갈등 없이 지나갔습니다."},
+      {text:"기존 제조업 지원에 예산 대부분을 투입한다", effects:{env:-20,econ:12,support:3,intl:-14},
+       feedback:"당장의 고용은 지켰지만 산업 전환이 늦어진다는 우려가 나옵니다."},
+      {text:"기존 산업의 녹색 전환(그린 리스킬링)에 집중 투자한다", effects:{env:7,econ:-6,support:5,intl:5},
+       feedback:"두 마리 토끼를 잡는 전략으로 호평받았지만 전환 속도는 더딥니다."}
+    ]
+  },
+  {
+    id:"g14", title:"이웃 국가와의 미세먼지 외교 갈등",
+    body:"국경을 넘어온 대기오염 물질로 갈등이 커지고 있습니다. 강경한 항의와 외교적 협력 사이에서 선택해야 합니다.",
+    choices:[
+      {text:"공동 대기질 관측 및 감축 협력 체계를 제안한다", effects:{env:7,econ:-5,support:0,intl:15},
+       feedback:"장기적인 해법을 모색하는 성숙한 외교로 평가받았습니다."},
+      {text:"강경한 외교적 항의와 무역 압박을 병행한다", effects:{env:1,econ:-8,support:7,intl:-23},
+       feedback:"국내 여론은 호응했지만 양국 관계가 크게 악화되었습니다."},
+      {text:"국내 자체 저감 대책 강화에 집중한다", effects:{env:4,econ:-2,support:2,intl:0},
+       feedback:"외교 마찰은 없었지만 근본 원인 해결에는 한계가 있었습니다."},
+      {text:"문제를 공개적으로 거론하지 않고 조용히 넘어간다", effects:{env:-9,econ:0,support:-9,intl:2},
+       feedback:"외교적으로는 무난했지만 국내에서 \"왜 침묵하냐\"는 비판을 받았습니다."}
+    ]
+  },
+  {
+    id:"g15", title:"대홍수 이후 재건 방향",
+    body:"기록적인 홍수로 여러 지역이 큰 피해를 입었습니다. 재건 과정에서 기후 적응형 인프라로 갈지, 신속한 원상복구로 갈지 결정해야 합니다.",
+    choices:[
+      {text:"기후 적응형 인프라로 전면 재설계해 재건한다", effects:{env:10,econ:-23,support:0,intl:7},
+       feedback:"재건 기간은 길어졌지만 다음 홍수에 대한 대비력이 크게 높아졌습니다."},
+      {text:"원래 모습대로 최대한 빠르게 복구한다", effects:{env:-19,econ:11,support:7,intl:-9},
+       feedback:"이재민들의 빠른 일상 복귀를 도왔지만 같은 피해가 되풀이될 위험이 남습니다."},
+      {text:"피해 지역 일부를 이주시키고 자연 침수지로 되돌린다", effects:{env:11,econ:-12,support:-12,intl:4},
+       feedback:"장기적으로 가장 안전한 방안이지만 이주 대상 주민들의 반발이 거셉니다."},
+      {text:"민간 자본을 유치해 재건 비용을 분담한다", effects:{env:1,econ:-2,support:2,intl:1},
+       feedback:"재정 부담을 줄였지만 민간 이익이 재건 방향에 영향을 미쳤다는 비판도 나옵니다."}
+    ]
+  }
+];
+
+/* ---------------------------------------------------------
+   돌발 이벤트: 5가지 유형, 30% 확률로 각 상황 진입 전 발동
+   각 역할별로 유형에 맞는 이벤트 텍스트/효과 매핑
+   --------------------------------------------------------- */
+
+const RANDOM_EVENTS = {
+  corp:[
+    {type:"미디어", icon:"📰", title:"탐사보도, 우리 회사를 정조준하다",
+     body:"한 시사 프로그램이 업계 환경 실태를 다루며 우리 회사 사례를 비중 있게 다뤘습니다. 대응 방향을 정해야 합니다.",
+     choices:[
+       {text:"즉각 공식 해명자료를 내고 후속 조치를 약속한다",
+        effects:{env:4,profit:-2,rep:8,emp:2},
+        feedback:"빠른 대응으로 추가 피해는 막았지만, 후속 조치 이행에 적잖은 비용이 들어갑니다."},
+       {text:"법적 대응을 검토하며 정면 반박한다",
+        effects:{env:-6,profit:-8,rep:-23,emp:-8},
+        feedback:"강경 대응이 오히려 \"뭔가 숨긴다\"는 인상을 주며 여론이 더 악화되었습니다."}
+     ]},
+    {type:"시장", icon:"📈", title:"원자재 가격 급등",
+     body:"국제 원자재 가격이 폭등하며 생산 비용 부담이 크게 커졌습니다.",
+     choices:[
+       {text:"제품 가격을 인상해 비용 부담을 소비자와 나눈다",
+        effects:{env:1,profit:5,rep:-17,emp:1},
+        feedback:"이익은 지켰지만 소비자 불만과 평판 하락을 감수해야 했습니다."},
+       {text:"가격은 유지하고 회사가 비용을 그대로 흡수한다",
+        effects:{env:0,profit:-19,rep:6,emp:-3},
+        feedback:"고객 신뢰는 지켰지만 분기 실적에 큰 충격이 왔습니다."}
+     ]},
+    {type:"여론", icon:"💬", title:"SNS에서 불매운동 조짐",
+     body:"일부 소비자들이 SNS에서 우리 회사 제품에 대한 불매 움직임을 보이고 있습니다.",
+     choices:[
+       {text:"적극적으로 소통하며 구체적 개선안을 공개한다",
+        effects:{env:1,profit:-2,rep:10,emp:1},
+        feedback:"진솔한 소통으로 분위기를 반전시켰지만 개선안 이행 비용이 발생했습니다."},
+       {text:"별다른 대응 없이 상황이 가라앉기를 기다린다",
+        effects:{env:0,profit:-6,rep:-23,emp:-3},
+        feedback:"무대응이 오히려 논란을 키워 평판이 크게 떨어졌습니다."}
+     ]},
+    {type:"규제", icon:"📋", title:"환경부 불시 점검",
+     body:"예고 없이 환경부의 현장 점검이 진행되었습니다. 일부 미비점이 발견될 가능성이 있습니다.",
+     choices:[
+       {text:"점검에 적극 협조하고 미비점을 자진 신고한다",
+        effects:{env:9,profit:-5,rep:4,emp:-2},
+        feedback:"개선 비용은 들었지만 성실한 태도로 신뢰를 일부 회복했습니다."},
+       {text:"법적 최소 범위로만 협조하며 자료 제출을 최소화한다",
+        effects:{env:-12,profit:-2,rep:-12,emp:-2},
+        feedback:"단기 비용은 아꼈지만 비협조적 태도가 알려지며 평판에 타격을 입었습니다."}
+     ]},
+    {type:"내부", icon:"👥", title:"핵심 인재 이탈",
+     body:"ESG 전략을 이끌던 핵심 인력 일부가 경쟁사로 이동했습니다. 조직 동요를 막아야 합니다.",
+     choices:[
+       {text:"남은 인력에 대한 처우와 권한을 즉시 강화한다",
+        effects:{env:1,profit:-8,rep:1,emp:11},
+        feedback:"비용은 들었지만 조직의 동요를 빠르게 진정시켰습니다."},
+       {text:"내부 동요와 무관하게 기존 방침을 그대로 유지한다",
+        effects:{env:-3,profit:2,rep:-3,emp:-26},
+        feedback:"단기적으로는 무난했지만 직원들의 불안과 불신이 크게 쌓였습니다."}
+     ]}
+  ],
+  gov:[
+    {type:"미디어", icon:"📰", title:"국제 언론, 정책 실효성에 의문 제기",
+     body:"해외 주요 언론이 정부의 환경 정책이 발표만 있고 실행이 더디다고 보도했습니다.",
+     choices:[
+       {text:"세부 이행 계획과 데이터를 즉시 공개해 반박한다",
+        effects:{env:1,econ:-3,support:-2,intl:12},
+        feedback:"투명한 공개로 국제사회의 신뢰를 일부 회복했습니다."},
+       {text:"공식 대응을 자제하고 시간이 지나길 기다린다",
+        effects:{env:0,econ:1,support:-2,intl:-23},
+        feedback:"무대응이 오히려 \"실제로 할 말이 없다\"는 인식을 키워 외교적 입지가 좁아졌습니다."}
+     ]},
+    {type:"시장", icon:"📈", title:"에너지 가격 급등",
+     body:"국제 에너지 가격이 급등하며 가계와 기업의 부담이 크게 커졌습니다.",
+     choices:[
+       {text:"한시적 에너지 보조금을 즉시 지급한다",
+        effects:{env:-3,econ:-16,support:11,intl:0},
+        feedback:"국민 부담은 줄였지만 재정 지출이 크게 늘었습니다."},
+       {text:"보조금 없이 시장 가격에 맡긴다",
+        effects:{env:2,econ:4,support:-25,intl:1},
+        feedback:"재정은 지켰지만 민심 이반이 빠르게 확산되었습니다."}
+     ]},
+    {type:"여론", icon:"💬", title:"청년층 기후 시위 확산",
+     body:"전국적으로 청년층의 기후 행동 촉구 시위가 확산되고 있습니다.",
+     choices:[
+       {text:"시위 대표단과 직접 대화하며 정책 반영을 약속한다",
+        effects:{env:7,econ:-5,support:3,intl:6},
+        feedback:"적극적인 소통으로 갈등을 일부 누그러뜨렸지만 향후 정책 부담이 커졌습니다."},
+       {text:"질서 유지를 우선하며 시위를 강하게 통제한다",
+        effects:{env:-6,econ:1,support:-12,intl:-14},
+        feedback:"단기적 질서는 지켰지만 강경 대응에 대한 국내외 비판이 거셉니다."}
+     ]},
+    {type:"규제", icon:"📋", title:"국제기구의 이행 점검",
+     body:"국제기구가 예고 없이 우리나라의 기후 공약 이행 상황을 점검했습니다.",
+     choices:[
+       {text:"미흡한 부분을 인정하고 보완 계획을 즉시 제출한다",
+        effects:{env:6,econ:-5,support:-5,intl:10},
+        feedback:"솔직한 인정이 오히려 신뢰를 높이는 결과로 이어졌습니다."},
+       {text:"이행 상황이 양호하다는 입장을 고수한다",
+        effects:{env:-8,econ:1,support:2,intl:-22},
+        feedback:"이후 자료의 허점이 드러나며 국제 신뢰도가 크게 떨어졌습니다."}
+     ]},
+    {type:"내부", icon:"👥", title:"여당 내 정책 이견 표출",
+     body:"여당 내에서 환경 정책 속도를 둘러싼 이견이 공개적으로 드러났습니다.",
+     choices:[
+       {text:"당정 협의를 통해 정책 속도를 일부 조정한다",
+        effects:{env:-5,econ:2,support:5,intl:-3},
+        feedback:"내부 갈등은 진정됐지만 정책의 추진력이 다소 약해졌습니다."},
+       {text:"기존 정책 방향을 강하게 밀어붙인다",
+        effects:{env:6,econ:-6,support:-16,intl:4},
+        feedback:"정책 일관성은 지켰지만 여당 내 갈등이 표면화되며 지지율이 흔들렸습니다."}
+     ]}
+  ]
+};
+
+/* ---------------------------------------------------------
+   칭호 시스템: 환경 점수를 항상 고려해 종합 판정
+   --------------------------------------------------------- */
+
+function getStatRange(stats, key){ return stats[key]; }
+
+function computeTitle(role, stats){
+  // 정규화: 모든 스탯은 0~100 범위로 클램프되어 저장됨
+  const env = stats.env;
+  if(role==="corp"){
+    const profit = stats.profit, rep = stats.rep, emp = stats.emp;
+    if(env>=60 && profit>=50 && rep>=50 && emp>=50)
+      return {name:"지속가능 경영의 모범", tone:"good",
+        desc:"환경과 이익, 평판을 모두 균형 있게 끌어올린 보기 드문 경영진입니다. 단기 성과만 좇지 않고 장기적 지속가능성을 설계했습니다."};
+    if(env<35 && profit>=55)
+      return {name:"이번 분기만 보는 CEO", tone:"bad",
+        desc:"이익은 지켰지만 환경 지표는 위험 수준입니다. 다음 분기, 다음 세대의 비용을 지금 끌어다 쓴 셈입니다."};
+    if(env<35 && rep>=55)
+      return {name:"이미지만 좋은 그린워싱 전문가", tone:"bad",
+        desc:"대외 평판은 그럴듯하지만 실제 환경 성과는 따라오지 못했습니다. 언젠가 그 간극이 드러날 수 있습니다."};
+    if(emp<30 && profit>=50)
+      return {name:"숫자는 좋지만 사람을 잃은 경영자", tone:"bad",
+        desc:"재무 성과는 나쁘지 않지만 그 과정에서 직원들의 신뢰를 잃었습니다. 조직은 숫자만으로 굴러가지 않습니다."};
+    if(env<40 && profit<40 && rep<40 && emp<40)
+      return {name:"총체적 난국의 경영진", tone:"bad",
+        desc:"어느 지표에서도 뚜렷한 성과를 내지 못했습니다. 우선순위를 다시 세울 필요가 있습니다."};
+    if(env>=55 && profit<30)
+      return {name:"환경은 지켰지만 회사는 위태로운 경영자", tone:"neutral",
+        desc:"환경적으로는 모범적이었지만 재무 건전성을 충분히 지키지 못했습니다. 지속가능성은 환경만으로 완성되지 않습니다."};
+    if(env>=50 && emp>=55)
+      return {name:"사람과 환경을 함께 본 리더", tone:"good",
+        desc:"단기 이익보다 사람과 환경을 우선한 선택들이 쌓였습니다. 더 단단한 조직으로 향하고 있습니다."};
+    if(profit>=55 && env<50)
+      return {name:"안정적이지만 아쉬운 경영자", tone:"neutral",
+        desc:"회사는 무너지지 않았지만, 환경에 대한 책임은 충분히 다하지 못했습니다. 다음에는 한 걸음 더 나아가 보세요."};
+    return {name:"평범한 균형 경영자", tone:"neutral",
+      desc:"두드러진 강점도, 치명적인 약점도 없는 무난한 경영이었습니다. 다음 도전에서는 한 영역에서 확실한 강점을 만들어보세요."};
+  } else {
+    const econ = stats.econ, support = stats.support, intl = stats.intl;
+    if(env>=55 && econ>=50 && support>=50 && intl>=50)
+      return {name:"기후 선도국을 이끈 지도자", tone:"good",
+        desc:"환경, 경제, 지지율, 국제 관계를 모두 끌어올린 드문 리더십입니다. 단기적 인기와 장기적 책임을 함께 설계했습니다."};
+    if(env<35 && support>=55)
+      return {name:"인기는 많은데 미래는 없는 대통령", tone:"bad",
+        desc:"지지율은 높지만 환경 지표는 위험 수준입니다. 당장의 인기를 위해 다음 세대의 환경을 미뤄둔 셈입니다."};
+    if(env<35 && intl>=55)
+      return {name:"국제무대용 이미지 정치가", tone:"bad",
+        desc:"국제 사회에서의 평판 관리에는 능했지만 실제 국내 환경 성과는 미흡했습니다. 말과 실적의 간극이 큽니다."};
+    if(support<30 && econ>=50)
+      return {name:"경제는 지켰지만 신뢰를 잃은 지도자", tone:"bad",
+        desc:"경제 지표는 지켰지만 국민의 신뢰를 충분히 얻지 못했습니다. 정책은 숫자만으로 완성되지 않습니다."};
+    if(env<40 && econ<40 && support<40 && intl<40)
+      return {name:"총체적 난국의 정부", tone:"bad",
+        desc:"어느 지표에서도 뚜렷한 성과를 내지 못했습니다. 정책의 우선순위를 다시 세울 필요가 있습니다."};
+    if(env>=50 && econ<28)
+      return {name:"환경은 지켰지만 경제를 흔든 지도자", tone:"neutral",
+        desc:"환경적 성과는 뚜렷했지만 경제적 충격을 충분히 관리하지 못했습니다. 전환에는 속도 조절이 필요합니다."};
+    if(env>=45 && econ>=45)
+      return {name:"녹색 성장을 증명한 정부", tone:"good",
+        desc:"환경과 경제가 상충한다는 통념을 깨고 둘을 함께 끌어올린 보기 드문 성과입니다."};
+    if(econ>=50 && env<45)
+      return {name:"성장은 지켰지만 아쉬운 정부", tone:"neutral",
+        desc:"경제는 무너지지 않았지만, 환경에 대한 책임은 충분히 다하지 못했습니다. 다음 임기에서는 한 걸음 더 나아가 보세요."};
+    return {name:"평범한 균형 정부", tone:"neutral",
+      desc:"두드러진 강점도, 치명적인 약점도 없는 무난한 정책 운영이었습니다. 다음 임기에서는 한 영역에서 확실한 성과를 만들어보세요."};
+  }
+}
+
+/* =========================================================
+   2. 게임 상태 & 엔진
+   ========================================================= */
+
+const TOTAL_ROUNDS = 10;
+const EVENT_CHANCE = 0.30;
+
+let state = {
+  role:null,
+  stats:{},
+  round:0,
+  situationQueue:[],
+  pendingEvent:null,
+  history:[], // {situationTitle, choiceText, effects}
+  gameOverReason:null // "lose" | null
+};
+
+function clamp(v){ return Math.max(0, Math.min(100, v)); }
+
+function initStats(role){
+  const base = role==="corp"
+    ? {env:50,profit:50,rep:50,emp:50}
+    : {env:50,econ:50,support:50,intl:50};
+  return base;
+}
+
+function pickRandomSituations(role){
+  const pool = role==="corp" ? CORP_SITUATIONS.slice() : GOV_SITUATIONS.slice();
+  // shuffle
+  for(let i=pool.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [pool[i],pool[j]]=[pool[j],pool[i]];
+  }
+  return pool.slice(0, TOTAL_ROUNDS);
+}
+
+/* =========================================================
+   3. 렌더링
+   ========================================================= */
+
+const app = document.getElementById("app");
+
+function render(){
+  if(!state.role){
+    renderTitleScreen();
+  } else if(state.gameOverReason){
+    renderEndScreen();
+  } else if(state.round >= TOTAL_ROUNDS){
+    state.gameOverReason = "clear";
+    renderEndScreen();
+  } else if(state.pendingEvent){
+    renderEventThenSituation();
+  } else {
+    renderSituation();
+  }
+}
+
+function statColorVars(roleKey, statKey){
+  const role = ROLES[roleKey];
+  const s = role.stats.find(s=>s.key===statKey);
+  return s ? {color:s.color, dim:s.dim, label:s.label} : {color:"#999",dim:"#444",label:statKey};
+}
+
+function buildDashboardHTML(deltas){
+  const role = ROLES[state.role];
+  return `
+    <div class="dashboard">
+      ${role.stats.map(s=>{
+        const val = clamp(state.stats[s.key]);
+        const d = deltas ? deltas[s.key] : null;
+        const warnZone = val<=20 ? "warn-zone":"";
+        return `
+        <div class="stat-box ${warnZone}">
+          <span class="stat-delta ${d? (d>0?'pos show':'neg show'):''}">${d!=null?(d>0?'+'+d:d):''}</span>
+          <div class="stat-label"><span class="stat-dot" style="background:${s.color}"></span>${s.label}</div>
+          <div class="stat-value" style="color:${val<=20?'var(--danger)':'var(--ink-0)'}">${val}</div>
+          <div class="stat-track"><div class="stat-fill" style="width:${val}%;background:${val<=20?'var(--danger)':s.color}"></div></div>
+        </div>`;
+      }).join("")}
+    </div>
+  `;
+}
+
+function buildHUD(){
+  const role = ROLES[state.role];
+  const pct = Math.round((state.round/TOTAL_ROUNDS)*100);
+  return `
+    <div class="hud">
+      <div class="hud-left">
+        <span class="role-tag">${role.emoji} ${role.name} 모드</span>
+        <span>${state.round}/${TOTAL_ROUNDS} 라운드</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
+    </div>
+  `;
+}
+
+/* ---------- 타이틀 화면 ---------- */
+function renderTitleScreen(){
+  app.innerHTML = `
+    <div class="fade-in">
+      <div class="brand">
+        <div class="brand-mark">🌿</div>
+        <span class="brand-name">Green Desk Simulation</span>
+      </div>
+
+      <h1 class="hero-title">하나의 선택이,<br><em>지구의 다음 10년</em>을 바꾼다</h1>
+      <p class="hero-sub">
+        기업의 경영진, 혹은 정부의 정책 결정자가 되어 10번의 갈림길에 섭니다.
+        모든 선택은 환경, 경제, 신뢰 — 무엇 하나도 그냥 지나가지 않습니다.
+        한 번에 깨기는 쉽지 않을 겁니다. 그래도 괜찮습니다, 다시 시작하면 됩니다.
+      </p>
+
+      <div class="role-grid">
+        <button class="role-card pop-in" data-role="corp">
+          <span class="role-emoji">🏭</span>
+          <h3>기업으로 플레이</h3>
+          <p>대기업 경영진이 되어 이익과 환경, 직원과 평판 사이에서 균형을 잡으세요.</p>
+          <div class="role-stats">
+            <span class="stat-chip">환경</span><span class="stat-chip">이익</span>
+            <span class="stat-chip">평판</span><span class="stat-chip">직원만족도</span>
+          </div>
+        </button>
+        <button class="role-card pop-in" data-role="gov" style="animation-delay:.08s">
+          <span class="role-emoji">🏛️</span>
+          <h3>정부로 플레이</h3>
+          <p>국가의 정책 결정자가 되어 환경과 경제, 지지율과 외교 관계를 함께 운영하세요.</p>
+          <div class="role-stats">
+            <span class="stat-chip">환경</span><span class="stat-chip">경제</span>
+            <span class="stat-chip">지지율</span><span class="stat-chip">국제관계</span>
+          </div>
+        </button>
+      </div>
+
+      <p class="ghost-note">
+        매 라운드 진입 전 30% 확률로 예측 못한 돌발 이벤트가 발생하며, 이때도 2가지 대응 중 하나를 선택합니다.
+        어떤 선택을 하든 4가지 지표가 모두 크게 변동됩니다. 10번의 의사결정을 모두 마쳐야 게임이 끝나며,
+        최종 지표를 종합한 칭호가 주어집니다 — 그 칭호는 늘 환경을 함께 평가합니다.
+      </p>
+    </div>
+  `;
+
+  app.querySelectorAll(".role-card").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const role = btn.dataset.role;
+      startGame(role);
+    });
+  });
+}
+
+function startGame(role){
+  state.role = role;
+  state.stats = initStats(role);
+  state.round = 0;
+  state.situationQueue = pickRandomSituations(role);
+  state.pendingEvent = null;
+  state.history = [];
+  state.gameOverReason = null;
+  goToNextRound();
+}
+
+function goToNextRound(){
+  if(state.round >= TOTAL_ROUNDS){
+    state.pendingEvent = null;
+    render();
+    return;
+  }
+  // 라운드 진입 전 30% 확률 이벤트 체크
+  if(Math.random() < EVENT_CHANCE){
+    const events = RANDOM_EVENTS[state.role];
+    const ev = events[Math.floor(Math.random()*events.length)];
+    state.pendingEvent = ev;
+  } else {
+    state.pendingEvent = null;
+  }
+  render();
+}
+
+/* ---------- 이벤트 화면 (2지선다 선택형) ---------- */
+function renderEventThenSituation(){
+  const ev = state.pendingEvent;
+  const letters = ["A","B"];
+
+  app.innerHTML = `
+    <div class="fade-in">
+      ${buildHUD()}
+      ${buildDashboardHTML(null)}
+      <div class="event-banner shake">
+        <span class="event-icon">${ev.icon}</span>
+        <div>
+          <span class="event-tag">돌발 이벤트 · ${ev.type}</span>
+          <h4>${ev.title}</h4>
+          <p>${ev.body}</p>
+        </div>
+      </div>
+      <div class="card">
+        <span class="situation-eyebrow">대응을 선택하세요</span>
+        <div class="choices" style="margin-top:14px;">
+          ${ev.choices.map((c,i)=>`
+            <button class="choice-btn event-choice-btn" data-idx="${i}">
+              <span class="choice-letter">${letters[i]}</span>
+              <span>${c.text}</span>
+            </button>
+          `).join("")}
+        </div>
+      </div>
+    </div>
+  `;
+
+  const buttons = app.querySelectorAll(".event-choice-btn");
+  buttons.forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      buttons.forEach(b=>b.disabled=true);
+      const idx = parseInt(btn.dataset.idx,10);
+      const choice = ev.choices[idx];
+      const applied = applyEffects(choice.effects);
+      state.pendingEvent = null;
+      renderEventResult(ev, choice, applied);
+    });
+  });
+}
+
+function renderEventResult(ev, choice, applied){
+  const role = ROLES[state.role];
+  app.innerHTML = `
+    <div class="fade-in">
+      ${buildHUD()}
+      ${buildDashboardHTML(applied)}
+      <div class="event-banner">
+        <span class="event-icon">${ev.icon}</span>
+        <div>
+          <span class="event-tag">돌발 이벤트 결과 · ${ev.type}</span>
+          <h4>${ev.title}</h4>
+          <p>${ev.body}</p>
+        </div>
+      </div>
+      <div class="card">
+        <div class="feedback-card">
+          <span class="feedback-tag">선택한 대응</span>
+          <p class="feedback-text" style="color:var(--ink-0);font-weight:600;margin-bottom:10px;">${choice.text}</p>
+          <span class="feedback-tag">결과</span>
+          <p class="feedback-text">${choice.feedback}</p>
+          <div class="delta-row">
+            ${role.stats.map(s=>{
+              const d = applied[s.key]||0;
+              return `<span class="delta-pill ${d>0?'pos':(d<0?'neg':'')}">${s.label} ${d>0?'+':''}${d}</span>`;
+            }).join("")}
+          </div>
+          <button class="next-btn" id="continue-btn">의사결정 진행하기 →</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById("continue-btn").addEventListener("click", ()=>{
+    render();
+  }, {once:true});
+}
+
+/* ---------- 상황 화면 ---------- */
+function renderSituation(){
+  const situation = state.situationQueue[state.round];
+  const letters = ["A","B","C","D"];
+
+  app.innerHTML = `
+    <div class="fade-in">
+      ${buildHUD()}
+      ${buildDashboardHTML(null)}
+      <div class="card situation-card">
+        <span class="situation-eyebrow">상황 ${state.round+1} / ${TOTAL_ROUNDS}</span>
+        <h2 class="situation-title">${situation.title}</h2>
+        <p class="situation-body">${situation.body}</p>
+        <div class="choices">
+          ${situation.choices.map((c,i)=>`
+            <button class="choice-btn" data-idx="${i}">
+              <span class="choice-letter">${letters[i]}</span>
+              <span>${c.text}</span>
+            </button>
+          `).join("")}
+        </div>
+      </div>
+    </div>
+  `;
+
+  const buttons = app.querySelectorAll(".choice-btn");
+  buttons.forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      buttons.forEach(b=>b.disabled=true);
+      const idx = parseInt(btn.dataset.idx,10);
+      const choice = situation.choices[idx];
+      const applied = applyEffects(choice.effects);
+      state.history.push({
+        situationTitle: situation.title,
+        choiceText: choice.text,
+        effects: choice.effects
+      });
+      renderChoiceResult(situation, choice, applied);
+    });
+  });
+}
+
+function applyEffects(effects){
+  // 소프트캡: 스탯이 0 또는 100에 가까울수록 같은 방향 변화의 영향력을 크게 줄여
+  // 큰 변동폭이 체감되면서도 한쪽 극단에만 쏠리지 않게 한다.
+  const appliedDeltas = {};
+  Object.keys(effects).forEach(k=>{
+    const raw = effects[k];
+    const cur = state.stats[k];
+    let factor = 1;
+    if(raw > 0 && cur > 60){
+      // 60 이상에서 양의 변화는 빠르게 둔화 (60->1.0, 100->0.15)
+      factor = Math.max(0.15, 1 - (cur - 60) / 47);
+    } else if(raw < 0 && cur < 40){
+      // 40 이하에서 음의 변화는 빠르게 둔화 (40->1.0, 0->0.15)
+      factor = Math.max(0.15, 1 - (40 - cur) / 47);
+    }
+    const adjusted = Math.round(raw * factor);
+    const before = state.stats[k];
+    state.stats[k] = clamp(before + adjusted);
+    appliedDeltas[k] = state.stats[k] - before;
+  });
+  return appliedDeltas;
+}
+
+function renderChoiceResult(situation, choice, applied){
+  const role = ROLES[state.role];
+  app.innerHTML = `
+    <div class="fade-in">
+      ${buildHUD()}
+      ${buildDashboardHTML(applied)}
+      <div class="card">
+        <span class="situation-eyebrow">상황 ${state.round+1} 결과</span>
+        <h2 class="situation-title" style="font-size:20px;">${situation.title}</h2>
+        <div class="feedback-card">
+          <span class="feedback-tag">당신의 선택</span>
+          <p class="feedback-text" style="color:var(--ink-0);font-weight:600;margin-bottom:10px;">${choice.text}</p>
+          <span class="feedback-tag">결과</span>
+          <p class="feedback-text">${choice.feedback}</p>
+          <div class="delta-row">
+            ${role.stats.map(s=>{
+              const d = applied[s.key]||0;
+              return `<span class="delta-pill ${d>0?'pos':(d<0?'neg':'')}">${s.label} ${d>0?'+':''}${d}</span>`;
+            }).join("")}
+          </div>
+          <button class="next-btn" id="next-round-btn">다음으로 →</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById("next-round-btn").addEventListener("click", ()=>{
+    state.round += 1;
+    goToNextRound();
+  }, {once:true});
+}
+
+/* ---------- 결과(종료) 화면 ---------- */
+/* ---------------------------------------------------------
+   결과창 서술형 질문 (역할별)
+   --------------------------------------------------------- */
+
+const REFLECTION_QUESTIONS = {
+  corp:[
+    "당신이 기업의 경영자였다면 환경 보호와 이익 중 어느 것을 더 중요하게 생각했는가? 그 이유는 무엇인가?",
+    "기업이 환경 보호를 위해 노력해야 하는 이유는 무엇이라고 생각하는가? 반대로 기업이 환경 보호에 소극적일 수밖에 없는 이유는 무엇일까?",
+    "환경 보호를 기업의 자율에 맡기는 것이 좋을까, 아니면 정부의 규제가 필요할까?"
+  ],
+  gov:[
+    "환경을 보호하기 위해 정부가 기업에 강한 규제를 하는 것이 항상 바람직할까? 어떤 문제가 발생할 수 있을까?",
+    "환경 문제를 해결하는 데 가장 중요한 주체는 누구라고 생각하는가? (정부, 기업, 시민) 그 이유는 무엇인가?",
+    "환경을 보전하는 정책은 시민들에게 인기가 없는 경우가 많습니다. 정부가 지지율만을 생각하면 어떤 문제가 일어날까?"
+  ]
+};
+
+function renderEndScreen(){
+  const role = ROLES[state.role];
+  const titleInfo = computeTitle(state.role, state.stats);
+  const questions = REFLECTION_QUESTIONS[state.role];
+
+  const headline = "10번의 갈림길을 모두 통과했습니다";
+  const subDesc = `${TOTAL_ROUNDS}개의 의사결정과 그 사이 돌발 상황들을 거치며 ${role.name}을(를) 운영한 결과입니다. 최종 지표와 칭호를 확인해보세요.`;
+
+  app.innerHTML = `
+    <div class="fade-in">
+      ${buildHUD()}
+      <div class="card center">
+        <div class="end-icon">🏁</div>
+        <h2 class="end-title">${headline}</h2>
+        <p class="end-desc">${subDesc}</p>
+
+        <div class="title-badge ${titleInfo.tone}">${titleInfo.name}</div>
+        <p class="end-desc">${titleInfo.desc}</p>
+
+        ${buildFinalDashboard()}
+
+        <hr class="divider">
+
+        <div style="text-align:left;">
+          <span class="section-label">${role.name}의 선택 기록 (${state.history.length}개)</span>
+          ${buildHistoryRecap()}
+        </div>
+
+        <hr class="divider">
+
+        <div style="text-align:left;">
+          <span class="section-label">생각해보기</span>
+          <p style="font-size:14px;color:var(--ink-2);margin:0 0 16px;line-height:1.6;">
+            ${role.name} 입장에서 플레이해본 경험을 바탕으로 아래 질문에 답해보세요. 작성한 내용은 결과 제출 시 함께 저장됩니다.
+          </p>
+          <div class="effort-inputs" id="effort-inputs">
+            ${questions.map((q,i)=>`
+              <div class="form-field full" style="margin-bottom:4px;">
+                <label style="font-size:14px;color:var(--ink-1);font-family:var(--sans);line-height:1.5;">${i+1}. ${q}</label>
+                <textarea id="effort-${i+1}" placeholder="답변을 입력해주세요"></textarea>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+
+        <hr class="divider">
+
+        <div style="text-align:left;">
+          <span class="section-label">제출 정보</span>
+          <div class="form-grid">
+            <div class="form-field"><label for="f-grade">학년</label><input id="f-grade" type="text" inputmode="numeric" placeholder="예: 2"></div>
+            <div class="form-field"><label for="f-class">반</label><input id="f-class" type="text" inputmode="numeric" placeholder="예: 3"></div>
+            <div class="form-field"><label for="f-number">번호</label><input id="f-number" type="text" inputmode="numeric" placeholder="예: 15"></div>
+            <div class="form-field full"><label for="f-name">이름</label><input id="f-name" type="text" placeholder="이름을 입력하세요"></div>
+          </div>
+          <button class="btn-primary" id="submit-btn">결과 제출하기</button>
+          <button class="btn-secondary" id="retry-btn">다시 도전하기</button>
+          <div class="save-status" id="save-status"></div>
+        </div>
+
+        <p class="footnote">
+          ※ 결과 제출 시 입력한 정보와 게임 결과가 별도 스프레드시트(구글 시트)로 전송됩니다.
+          제출 전, 선생님이 안내한 제출 주소(웹앱 URL)가 연결되어 있는지 확인해주세요.
+        </p>
+      </div>
+    </div>
+  `;
+
+  document.getElementById("retry-btn").addEventListener("click", ()=>{
+    state = {role:null, stats:{}, round:0, situationQueue:[], pendingEvent:null, history:[], gameOverReason:null};
+    render();
+  });
+
+  document.getElementById("submit-btn").addEventListener("click", handleSubmit);
+}
+
+function buildFinalDashboard(){
+  const role = ROLES[state.role];
+  return `
+    <div class="final-dashboard">
+      ${role.stats.map(s=>{
+        const val = clamp(state.stats[s.key]);
+        return `
+        <div class="stat-box">
+          <div class="stat-label"><span class="stat-dot" style="background:${s.color}"></span>${s.label}</div>
+          <div class="stat-value">${val}</div>
+          <div class="stat-track"><div class="stat-fill" style="width:${val}%;background:${s.color}"></div></div>
+        </div>`;
+      }).join("")}
+    </div>
+  `;
+}
+
+function buildHistoryRecap(){
+  if(state.history.length===0) return `<p style="color:var(--ink-2);font-size:13px;">기록된 선택이 없습니다.</p>`;
+  return `
+    <ul class="effort-list">
+      ${state.history.map((h,i)=>`<li><strong style="color:var(--ink-0);">${i+1}. ${h.situationTitle}</strong> — ${h.choiceText}</li>`).join("")}
+    </ul>
+  `;
+}
+
+/* ---------- 제출 처리 ---------- */
+// 선생님/제작자가 배포 시 이 값을 본인의 Google Apps Script 웹앱 URL로 교체하면
+// 결과가 실제 구글 스프레드시트로 저장됩니다. (아래 안내 참고)
+const SHEET_WEBHOOK_URL = ""; // 예: "https://script.google.com/macros/s/XXXXXXXX/exec"
+
+function handleSubmit(){
+  const grade = document.getElementById("f-grade").value.trim();
+  const klass = document.getElementById("f-class").value.trim();
+  const number = document.getElementById("f-number").value.trim();
+  const name = document.getElementById("f-name").value.trim();
+  const a1 = document.getElementById("effort-1").value.trim();
+  const a2 = document.getElementById("effort-2").value.trim();
+  const a3 = document.getElementById("effort-3").value.trim();
+
+  const statusEl = document.getElementById("save-status");
+
+  if(!grade || !klass || !number || !name){
+    statusEl.textContent = "학년 / 반 / 번호 / 이름을 모두 입력해주세요.";
+    statusEl.className = "save-status";
+    return;
+  }
+  if(!a1 || !a2 || !a3){
+    statusEl.textContent = "위 질문 3가지에 모두 답변을 작성해주세요.";
+    statusEl.className = "save-status";
+    return;
+  }
+
+  const role = ROLES[state.role];
+  const titleInfo = computeTitle(state.role, state.stats);
+  const questions = REFLECTION_QUESTIONS[state.role];
+
+  const payload = {
+    timestamp: new Date().toISOString(),
+    grade, klass, number, name,
+    role: role.name,
+    result: "완주",
+    title: titleInfo.name,
+    stats: {...state.stats},
+    question1: questions[0], answer1: a1,
+    question2: questions[1], answer2: a2,
+    question3: questions[2], answer3: a3,
+    rounds: state.history.map(h=>`${h.situationTitle} → ${h.choiceText}`).join(" / ")
+  };
+
+  const submitBtn = document.getElementById("submit-btn");
+  submitBtn.disabled = true;
+  submitBtn.textContent = "제출 중...";
+
+  if(!SHEET_WEBHOOK_URL){
+    // 웹훅 URL이 설정되지 않은 경우: 로컬에 결과를 보관하고 안내만 표시
+    statusEl.innerHTML = "⚠ 스프레드시트 연결 주소가 아직 설정되지 않았습니다. 결과 데이터를 아래에서 직접 복사하거나, 선생님께 웹앱 URL 설정을 요청하세요.";
+    statusEl.className = "save-status";
+    showPayloadFallback(payload);
+    submitBtn.disabled = false;
+    submitBtn.textContent = "결과 제출하기";
+    return;
+  }
+
+  fetch(SHEET_WEBHOOK_URL, {
+    method:"POST",
+    mode:"no-cors",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify(payload)
+  }).then(()=>{
+    statusEl.textContent = "✓ 결과가 저장되었습니다. 제출이 완료되었습니다.";
+    statusEl.className = "save-status ok";
+    submitBtn.textContent = "제출 완료";
+  }).catch(()=>{
+    statusEl.textContent = "전송에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해주세요.";
+    statusEl.className = "save-status";
+    submitBtn.disabled = false;
+    submitBtn.textContent = "결과 제출하기";
+  });
+}
+
+function showPayloadFallback(payload){
+  let pre = document.getElementById("payload-fallback");
+  if(!pre){
+    pre = document.createElement("pre");
+    pre.id = "payload-fallback";
+    pre.style.cssText = "margin-top:12px;background:var(--bg-1);border:1px solid var(--line);border-radius:8px;padding:12px;font-size:11px;color:var(--ink-2);white-space:pre-wrap;word-break:break-all;max-height:160px;overflow:auto;";
+    document.getElementById("save-status").insertAdjacentElement("afterend", pre);
+  }
+  pre.textContent = JSON.stringify(payload, null, 2);
+}
+
+/* =========================================================
+   4. 시작
+   ========================================================= */
+render();
+</script>
+</body>
+</html>
